@@ -7,7 +7,7 @@ void show_usage() {
     printf("Disk is simulated in file \"simplefs.data\".\n"
             "Supported operations:\n"
            "\t- ls <directory>\n"
-           "\t- cd <directory> (can only do 1 step)\n"
+           "\t- cd <directory>\n"
            "\t- touch <filename>\n"
            "\t- mkdir <directory_name>\n"
            "\t- append <filename> \"data\" (quotes are necessery)\n"
