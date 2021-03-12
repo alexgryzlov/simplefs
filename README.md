@@ -20,3 +20,6 @@ Supported operations:
 - cat <filename>
 - rm <name> (works with files and empty dirs)
 - exit (save superblock and exit)
+
+
+If you don't exit properly then fs becomes corrupted and you should recreate it (delete simplefs.data).
