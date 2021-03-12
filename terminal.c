@@ -27,6 +27,10 @@ void execute(char* command, int* cur_inode, char* cur_dir) {
         sscanf(command, "%*s %s", name);
         char* ptr = strchr(command, '"');
         char* end = strchr(ptr + 1, '"');
+        if (ptr == NULL || end == NULL) {
+            ERROR("Quotes are necessery to append");
+            return;
+        }
         char buffer[1024] = {0};
         memcpy(buffer, ptr + 1, end - ptr - 1);
         fs_append(*cur_inode, name, buffer);
