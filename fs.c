@@ -67,6 +67,7 @@ int name_to_inode(int from_ind, char* name) {
     INode * inode = &sb.iNodes[from_ind];
     if (strchr(name, '/') == NULL) {
         for (int i = 0; i < BLOCKS_IN_INODE; ++i) {
+            if (!inode->block_ptr[i]) continue;
             File buffer[BLOCK_SIZE / sizeof(File)];
             move_ptr(inode->block_ptr[i], 0);
             read(FD, buffer, BLOCK_SIZE/sizeof(File)*sizeof(File));
@@ -105,6 +106,7 @@ void init() {
 
     memset(sb.free_block, 0xff, sizeof(sb.free_block));
     memset(sb.free_inode, 0xff, sizeof(sb.free_inode));
+    memset(sb.iNodes, 0, sizeof(sb.iNodes));
     // Root dir initialization
     set0(sb.free_inode[0], 1);
     set0(sb.free_block[0], 1);
@@ -117,7 +119,12 @@ void init() {
 }
 
 void ls(int from, char* name) {
-    INode * inode = &sb.iNodes[name_to_inode(from, name)];
+    int inode_ind = name_to_inode(from, name);
+    if (inode_ind == -1) {
+        ERROR("No such directory.");
+        return;
+    }
+    INode * inode = &sb.iNodes[inode_ind];
     if (!(inode->attr&DIR_FLAG)) {
         ERROR("This is not a directory.");
         return;
@@ -125,6 +132,7 @@ void ls(int from, char* name) {
     printf("Contents of the directory:\n");
     int file_count = inode->size / sizeof(File);
     for (int i = 0; i < BLOCKS_IN_INODE; ++i) {
+        if (!inode->block_ptr[i]) continue;
         File buffer[BLOCK_SIZE / sizeof(File)];
         move_ptr(inode->block_ptr[i], 0);
         read(FD, buffer, BLOCK_SIZE/sizeof(File)*sizeof(File));
@@ -141,11 +149,16 @@ void ls(int from, char* name) {
 int cd(int* cur_inode, char* cur_name, char* name) {
     INode* inode = &sb.iNodes[*cur_inode];
     for (int i = 0; i < BLOCKS_IN_INODE; ++i) {
+        if (!inode->block_ptr[i]) continue;
         File buffer[BLOCK_SIZE / sizeof(File)];
         move_ptr(inode->block_ptr[i], 0);
         read(FD, buffer, BLOCK_SIZE/sizeof(File)*sizeof(File));
         for (int j = 0; j < BLOCK_SIZE / sizeof(File); ++j) {
             if (buffer[j].inode_index != 0 && !strcmp(buffer[j].name, name)) {
+                if (!(sb.iNodes[buffer[j].inode_index].attr & DIR_FLAG)) {
+                    ERROR("This is not a directory.");
+                    return -1;
+                }
                 *cur_inode = buffer[j].inode_index;
                 if (!strcmp(buffer[j].name, ".")) {
                 }
@@ -315,6 +328,10 @@ int touch(int where, char* name, char FLAGS) {
     char file[MAX_NAME_SIZE];
     separate_dir_file(name, dir, file);
     where = name_to_inode(where, dir);
+    if (where == -1) {
+        ERROR("No such directory.");
+        return -1;
+    }
     if (name_to_inode(where, file) != -1) {
         ERROR("This name already exist.");
         return -1;
@@ -326,8 +343,14 @@ int touch(int where, char* name, char FLAGS) {
     INode * inode = &sb.iNodes[where];
     for (int i = 0; i < BLOCKS_IN_INODE; ++i) {
         File buffer[BLOCK_SIZE / sizeof(File)] ={0};
-        move_ptr(inode->block_ptr[i], 0);
+        int cur_block = inode->block_ptr[i];
+        if (cur_block == 0) cur_block = get_free_block();
+        move_ptr(cur_block, 0);
         read(FD, buffer, sizeof(buffer));
+        if (!inode->block_ptr[i]) {
+            memset(buffer, 0, sizeof(buffer));
+        }
+        inode->block_ptr[i] = cur_block;
         char found = 0;
         for (int j = 0; j < BLOCK_SIZE / sizeof(File); ++j) {
             if (!buffer[j].inode_index) {
@@ -417,6 +440,10 @@ void rm(int where, char* name) {
         return;
     }
     int file_inode = name_to_inode(where, file);
+    if (file_inode == -1) {
+        ERROR("Such name does not exist.");
+        return;
+    }
     rm_inode(dir_inode, file_inode);
 }
 
